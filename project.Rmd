@@ -1,0 +1,374 @@
+---
+title: "Final Project  - Student Alcohol Consumption"
+author: "Cheng Chang, Michelle Liu, Baraa Zekeria"
+output:
+  html_document:
+    theme: cosmo
+    code_folding: hide
+    toc: yes
+---
+
+## Introduction
+
+In this project, we want look at the correlations of various life problems of Portuguese students and their grade using public dataset. Our project is inspired by the paper "Using Data Mining to Predict Secondary School Student Performance", and we uses their datasets that contain information collected from secondary school students in Portuguese in the year 2005-2006 (Cortez and Silva 2008). The paper looks at grades for the class of Portuguese and Mathematics, which are arguably two of the most important subjects in Portuguese secondary schools (Ibid). The paper mentions that the education outcome of Portugal is "at Europe's tail end" mainly due to the high student failure and drop-out rate (Ibid). In this project, we want to specifically look at potential family and life issues of students reported, and see if there are some correlation between these problems and low grades in the two courses.
+
+Though the dataset is limited to Portuguese students, the personal issues mentioned in this report may apply to students in other countries as well.
+
+Reference: http://www3.dsi.uminho.pt/pcortez/student.pdf
+
+
+### Load packages
+
+```{r load-packages, message=FALSE, warning=FALSE}
+rm(list=ls(all=TRUE))
+library(tidyverse)
+library(tidymodels)
+library(ggplot2)
+library(ggcorrplot) # May need to install with install.packages("ggcorrplot") first
+```
+
+
+## Question
+
+There are many variables included in this dataset, but specifically, we want to look at grade outcomes and potential life problems of students.
+
+We want to answer the question: how do one's home life problems affect a student's grade?
+
+
+## The Data
+
+The data is collected from Kaggle, which in term is collected from the UCI Machine Learning dataset repository.
+
+[Student Alcohol Consumption](https://www.kaggle.com/uciml/student-alcohol-consumption): a survey of secondary school students regarding their math and Portuguese language classes in the school year between 2005 and 2006.
+
+There's two dataset for this project:
+
+  - Math class: ```student-mat.csv```
+  - Portuguese class: ```student-por.csv```
+  
+Data Dictionary (*credit to UCI Machine Learning*):
+
+  1. school - student's school (binary: 'GP' - Gabriel Pereira or 'MS' - Mousinho da Silveira)
+  2. sex - student's sex (binary: 'F' - female or 'M' - male)
+  3. age - student's age (numeric: from 15 to 22)
+  4. address - student's home address type (binary: 'U' - urban or 'R' - rural)
+  5. famsize - family size (binary: 'LE3' - less or equal to 3 or 'GT3' - greater than 3)
+  6. Pstatus - parent's cohabitation status (binary: 'T' - living together or 'A' - apart)
+  7. Medu - mother's education (numeric: 0 - none, 1 - primary education (4th grade), 2 – 5th to 9th grade, 3 – secondary education or 4 – higher education)
+  8. Fedu - father's education (numeric: 0 - none, 1 - primary education (4th grade), 2 – 5th to 9th grade, 3 – secondary education or 4 – higher education)
+  9. Mjob - mother's job (nominal: 'teacher', 'health' care related, civil 'services' (e.g. administrative or police), 'at_home' or 'other')
+  10. Fjob - father's job (nominal: 'teacher', 'health' care related, civil 'services' (e.g. administrative or police), 'at_home' or 'other')
+  11. reason - reason to choose this school (nominal: close to 'home', school 'reputation', 'course' preference or 'other')
+  12. guardian - student's guardian (nominal: 'mother', 'father' or 'other')
+  13. traveltime - home to school travel time (numeric: 1 - <15 min., 2 - 15 to 30 min., 3 - 30 min. to 1 hour, or 4 - >1 hour)
+  14. studytime - weekly study time (numeric: 1 - <2 hours, 2 - 2 to 5 hours, 3 - 5 to 10 hours, or 4 - >10 hours)
+  15. failures - number of past class failures (numeric: n if 1<=n<3, else 4)
+  16. schoolsup - extra educational support (binary: yes or no)
+  17. famsup - family educational support (binary: yes or no)
+  18. paid - extra paid classes within the course subject (Math or Portuguese) (binary: yes or no)
+  19. activities - extra-curricular activities (binary: yes or no)
+  20. nursery - attended nursery school (binary: yes or no)
+  21. higher - wants to take higher education (binary: yes or no)
+  22. internet - Internet access at home (binary: yes or no)
+  23. romantic - with a romantic relationship (binary: yes or no)
+  24. famrel - quality of family relationships (numeric: from 1 - very bad to 5 - excellent)
+  25. freetime - free time after school (numeric: from 1 - very low to 5 - very high)
+  26. goout - going out with friends (numeric: from 1 - very low to 5 - very high)
+  27. Dalc - workday alcohol consumption (numeric: from 1 - very low to 5 - very high)
+  28. Walc - weekend alcohol consumption (numeric: from 1 - very low to 5 - very high)
+  29. health - current health status (numeric: from 1 - very bad to 5 - very good)
+  30. absences - number of school absences (numeric: from 0 to 93)
+  31. G1 - first period grade (numeric: from 0 to 20)
+  32. G2 - second period grade (numeric: from 0 to 20)
+  33. G3 - final grade (numeric: from 0 to 20, output target)
+  
+**To narrow down our variables of interest with respect to our question, the following will be analyzed:**
+
+  - Home life problems: Pstatus, traveltime, famsup, internet, famrel, health
+  - Grades: G1, G2, G3
+
+
+### Data Import
+
+```{r}
+math <- read.table("data/student-mat.csv", sep=",", header = TRUE)
+porteguese <- read.table("data/student-por.csv", sep=",", header = TRUE)
+```
+
+
+Both files, **student-mat.csv** and **student-por.csv** are read in as a table (**read.table()**) format to create a data frame. To split the columns, the datasets are seperated by a comma.
+
+
+### Data Wrangling
+
+Based on the hint provided on Kaggle, we merge the two datasets to find common students data within them.
+
+```{r}
+students <- merge(math, porteguese, by = c("school","sex","age","address","famsize","Pstatus", "Medu","Fedu","Mjob","Fjob","reason","nursery","internet", "traveltime", "famsup", "famrel", "health"))
+```
+
+Both dataframe objects, *math* and *Portuguese*, are merged (**merge()**) by unique-based columns to the student.
+
+```{r}
+# Check if the number of rows equal the correct amount of students (382) as mentioned on Kaggle
+print(nrow(students)) 
+```
+
+The number of students remaining is 370, slightly lowered than the number reported on Kaggle because more columns are used during the merge. This is the number of students that reported for both math and Portuguese grades and are consistent in their responses to relevant life issue questions.
+
+With the use of the **gsub()** function, the columns are renamed to *_math* and *_portuguese* based off the respective pattern.
+
+  - "...x": math
+  - "...y": Portuguese
+  
+```{r}
+names(students) <- gsub(x = names(students), pattern = "\\.x", replacement = "_math")
+names(students) <- gsub(x = names(students), pattern = "\\.y", replacement = "_portuguese")
+```
+
+Next, we remove variables unrelated to our questions.
+
+Note: "school","sex","age","address", and "famsize" are kept in the dataset to help identify students if needed.
+
+```{r}
+students <- students |>
+  select("school", "sex", "age", "address", "famsize", "Pstatus", "traveltime", "famsup", "internet", "famrel", "health", "G1_math", "G2_math", "G3_math", "G1_portuguese", "G2_portuguese", "G3_portuguese")
+```
+
+Change "Pstatus", "famrel", and "internet" to numeric values.
+
+- Pstatus: 0 for parents livign apart, 1 for living together;
+- famsup: 0 for not having family support, 1 for having support;
+- internet: 0 for not having internet access at home, 1 for having.
+
+```{r}
+students <- students |>
+  mutate(Pstatus = case_when((Pstatus == "A") ~ 0, (Pstatus == "T") ~ 1)) |>
+  mutate(famsup = case_when((famsup == "no") ~ 0, (famsup == "yes") ~ 1)) |>
+  mutate(internet = case_when((internet == "no") ~ 0, (internet == "yes") ~ 1))
+```
+
+We now have our dataset.
+
+```{r}
+glimpse(students)
+```
+
+
+## Analysis
+
+To repeat the question , we want to understand the correlation between home life issues and academic performace of the students in this dataset.
+
+We calculate the average math and Portuguese score across the three quarters in our dataset.
+
+```{r}
+students <- students |>
+  mutate(avg_math = (G1_math + G2_math + G3_math) / 3) |>
+  mutate(avg_portuguese = (G1_portuguese + G2_portuguese + G3_portuguese) / 3)
+
+# Check if it looks correct
+students |>
+  select(avg_math, avg_portuguese) |>
+  head()
+```
+
+
+### Exploratory Data Analysis
+
+We check the predictors we are interested in to make sure there are no apparent correlations among them.
+
+```{r}
+corr <- cor(students |> select(Pstatus, traveltime, famsup, internet, famrel, health))
+ggcorrplot(corr,
+  tl.cex = 6,
+  hc.order = TRUE,
+  colors = c("blue", "white", "red"),
+  outline.color = "transparent",
+  title = "Correlation matrix of life issue variables in students",
+  legend.title = expression(rho)
+)
+```
+
+There seems to be some correlations between travel time and internet (possibly due to poor internet connection in more distant rural areas), health and family relationship, and internet and family support, but the correlation does not seem to be strong.
+
+
+First, we will examine the relationship between parental cohabitation status and average scores. 
+
+EDA 1: The barplot shows that the average math score is higher for students whose parents lived together. Apart is indicated in dark blue or "0" in the legend while together is indicated in light blue or "1" in the legend. However, the difference in math scores between parents that lived apart or together can be subtle (only 1-2 points different) and is not enough to make a conclusive statement. 
+
+```{r}
+students |>
+  ggplot(mapping = aes(x = Pstatus, y = avg_math, fill = Pstatus)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Math Scores and Parental Cohabitation Status", x = "Parental Cohabitation Status", y = "Average Math Score") +
+  theme(plot.title.position = "plot") +
+#attempted to change x-axis tick labels to show "Apart" and "Together" or to reflect that in the legends but was unable to do so
+  #theme(axis.ticks.x = element_blank()) +
+  #scale_x_discrete(breaks = c("0", "1"), labels = c("Apart", "Together")) +
+  #scale_color_manual(labels = c("Apart", "Together")) +
+#this line of code has worked before to change the title of the legend but I'm not sure why it's not showing up
+  guides(color = guide_legend(title = "Apart(0) or Together(1)"))
+```
+
+EDA 2: Similarly, this bar plot shows the relationship between average portuguese score and parental cohabitation status. The average portuguese score is generally higher for students whose parents lived together compared to those whose parents lived apart. The difference between the 2 groups is greater than when comparing the 2 groups for average math scores (2-3 points different) Nevertheless, the difference is not great enough to make a conclusive statement. 
+
+```{r}
+students |>
+  ggplot(mapping = aes(x = Pstatus, y = avg_portuguese, fill = Pstatus)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Portuguese Scores and Parental Cohabitation Status", x = "Parental Cohabitation Status", y = "Average Portuguese Score") +
+  theme(plot.title.position = "plot") +
+#this line of code has worked before to change the title of the legend but I'm not sure why it's not showing up
+  guides(color = guide_legend(title = "Apart(0) or Together(1)"))
+```
+
+Next, we will explore possible correlations between quality of family relationships and health.
+
+EDA 3: The scatter plot shows that there is no clear correlation between family relationships and health. The data shows that a student with good health can still have bad family relationships and a student with bad health can have excellent family relationships. While it may seem feasible for there to be a relationship between the 2 variables, the data does not provide evidence of it. However, one pattern we are able to see is a higher density of data points in the region with good health and good family relationships which could indicate that many students in the data are in good health and have good family relationships. 
+
+```{r}
+students |>
+  ggplot(mapping = aes(x = health, y = famrel)) +
+  geom_point() +
+  geom_jitter() +
+  labs(title = "Family Relations and Heath", x = "Health (on scale of 1-5)", y = "Quality of Family Relationships (on scale of 1-5)") +
+  theme(plot.title.position = "plot") +
+  geom_smooth(method = "lm", se = FALSE)
+  
+```
+Next, we will explore the travel time distribution of students in the sample. 
+
+EDA 4: The histogram shows the distribution of home to school travel time for students in the sample. Most students take less than 15 min to travel, and the number of students decreases as the amount of travel time increases. 1 indicates less than 15 min, 2 indicates 15-30 min, 3 indicates 30 min to 1 hour, and 4 indicates more than 1 hour. The least number of students take more than an hour to get to and from school. This result can indicate that travel time is not much of an issue in this population. However, it can be interesting to investigate if those students with longer travel times tend to have lower average scores. 
+
+```{r}
+students |>
+  ggplot(aes(x = traveltime)) +
+  geom_bar() +
+  labs(title = "Travel Time Distribution", x = "Home to School Travel Time", y = "Number of Students") +
+  theme(plot.title.position = "plot")
+  #attempted again to edit the tick labels but unable to succeed
+  #scale_x_discrete(breaks = c(1, 2, 3, 4), labels = c("<15 min", "15-30 min", "30 min - 1 hr", ">1 hr"))
+```
+
+Next, we will explore the relationship between internet and family support. 
+
+EDA 5: The barplot shows the number of students who have and don't have internet access at home. There is overwhelmingly greater number of students with internet access. Over 300 students have internet access while about 50 students don't have internet access. "Yes" is indicated by 1 and "No" is indicated by 0. This means that not having internet access is not an issue for most students, but it may be noteworthy to determine if those who don't have internet access are receiving lower scores as a result. 
+
+```{r}
+students |>
+  ggplot(mapping = aes(x = internet, fill = famsup)) + #attempted to graph both internet and famsup on same plot but didn't work
+  geom_bar(position = "dodge") +
+  labs(title = "Internet Access at Home", x = "Internet Access ('Yes(1)' or 'No(0)')", y = "Number of Students") +
+  theme(plot.title.position = "plot")
+```
+
+EDA 6: This barplot shows the number of students who have family education support and those who don't. There is a greater number of students who have family educational support than those who don't. About 260 students have family educational support and about 140 students don't. The difference between the 2 groups is not as great as compared to the 2 groups for internet access. 
+
+```{r}
+students |>
+  ggplot(mapping = aes(x = famsup, fill = internet)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Family Educational Support", x = "Family Support ('Yes(1)' or 'No(0)')", y = "Number of Students") +
+  theme(plot.title.position = "plot")
+```
+
+EDA 7: Plotting internet access and family educational support on a scatter plot shows that most students have internet access but there is a split between family educational support. There is no clear correlation between the 2 variables since the data points are very scattered. There is no clear line that the data points follow. As a result, we cannot make conclusions on the relationship between these 2 variables. 
+
+```{r}
+students |>
+  ggplot(mapping = aes(x = internet, y = famsup)) +
+  geom_point() +
+  geom_jitter() +
+  labs(title = "Internet Access and Family Educational Support", x = "Internet Access (0 = 'No', 1 = 'Yes')", y = "Family Educational Support (0 = 'No', 1 = 'Yes')") +
+  theme(plot.title.position = "plot") +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+
+### Data Analysis
+
+#### Math scores
+
+We first try to use multiple linear regression to check the correlation of all variables we are interested in with the average math grades of each students.
+
+```{r}
+m_math_all <- linear_reg() |>
+  fit(avg_math ~ Pstatus + traveltime + famsup + internet + famrel + health, data=students)
+
+m_math_all |>
+  tidy()
+```
+
+We will discuss the result later. For now, we try to reduce the number of predictor and achieve better AIC score.
+
+```{r}
+glance(m_math_all)$AIC
+```
+
+The process of backward selection is omitted here. The resulting linear regression model is:
+
+```{r}
+m_math <- linear_reg() |>
+  fit(avg_math ~ traveltime + famsup + internet, data=students)
+
+m_math |>
+  tidy()
+```
+
+With parent living status, family relationship, and health variables removed, the AIC score is:
+
+```{r}
+glance(m_math)$AIC
+```
+
+#### Portuguese scores
+
+Similar to math scores, we use a multiple linear regression model to fit the average Portuguese scores.
+
+```{r}
+m_portu_all <- linear_reg() |>
+  fit(avg_portuguese ~ Pstatus + traveltime + famsup + internet + famrel + health, data=students)
+
+m_portu_all |>
+  tidy()
+```
+
+The result us quite different from the math linear regression model. We will discuss the result later. Again, we try to reduce the number of predictor and achieve better AIC score.
+
+```{r}
+glance(m_portu_all)$AIC
+```
+
+The process of backward selection is omitted here. The resulting linear regression model is:
+
+```{r}
+m_portu <- linear_reg() |>
+  fit(avg_portuguese ~ traveltime + famsup + health, data=students)
+
+m_portu |>
+  tidy()
+```
+
+For Portuguese scores, with parent living status, family relationship, and internet access variables removed, the AIC score is:
+
+```{r}
+glance(m_portu)$AIC
+```
+
+
+### Results
+
+The two best linear regression models for math and Portuguese scores are:
+
+- Math: $avg\_math = 11.4 - 0.697 \times traveltime - 0.610 \times famsup + 0.847 \times internet$;
+- Portuguese: $avg\_portuguese = 14.1 - 0.644 \times traveltime + 0.458 \times famsup - 0.323 \times health$;
+
+The result is surprising for us. From AIC scores, it seems that parent cohabitation status and student's relationship with family have insignificant impact over their average portuguese and math scores. While access to internet is positively correlated with math scores, it has not significant impact over Portuguese scores. Conversely, health situation of students have an impact over the Portuguese scores, but no signficant correlations with math scores.
+
+But what is more surprising is the signs of the coefficients of some of the significant predictors. While it is understandable that long travel time negatively impacts average scores, while internet access positively influence them, it is hard to see why having family support negatively impacts average maths scores of students. It is even more suprising that having higher self-reported health scores is negatively correlated with Portuguese scores.
+
+## Conclusion
+
+Our result suggests that there are different factors that impact average math and Protuguese scores of secondary school students in Portugal. Travel time from home to school is a life issue that negatively impacts both scores, but internet access is only significantly correlated with math scores.
+
+There are also findings that are surpirsing and that may have shown that our analysis in inadequate. For example, our model shows that better health conditions is correlated with worse Portuguese scores, while family support is linked to worse math scores. These findings need to be put under more scrutiny in potential followup research. Our project is also limited by its scope of 370 students in Portugal, and that no longitudinal data is available. Research of more students in other regions during a longer period of time is necessary to attain a better understanding of how life issues affect student academic success.
